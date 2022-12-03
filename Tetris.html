@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>My Todo List</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  </head>
+  <body>
+    <style>
+table{border-spacing:0px}
+h1{display: inline; color: red}
+h2{color: pink}
+tr{height: 30px}
+.grid{border: 1px solid black; width: 30px; margin:0px;}
+.block{position:absolute; width: 30px; height: 30px;}
+#game{background-color: blue; width: 360px; height: 390px}
+#hud{background-color: black; width: 200px; height: 390px}
+    </style>
+    <div id="root"></div>
+    <script type="text/babel">
+//MACROS
+const colors = ["green", "red", "yellow", "orange", "pink"];
+function power(base,exp){
+	let result = 1;
+	for(let i=0;i<exp;i++)result = result*base;
+	return result;
+}
+
+function transform(pos,form,state){
+  let x = pos-12*Math.floor(pos/12);
+  //StraightLine
+  if(form==0){
+    //vertical
+    if(state==0 || state==2){
+      if(x==0 || x>=10)return;
+      return [pos+11,pos+12,pos+13,pos+14];
+    }
+    //horizontal
+    if(state==1 || state==3)return [pos-11,pos+1,pos+13,pos+25];
+  }
+  //T-Form
+  if(form==1){
+    //right
+    if(state==0){
+      if(x==0)return;
+      return [pos+11,pos+12,pos+13,pos+24];
+    }
+    //down
+    if(state==1)return [pos-11,pos,pos+1,pos+13];
+    //left
+    if(state==2){
+      if(x==11)return;
+      return [pos,pos+11,pos+12,pos+13];
+    }
+    //up
+    if(state==3)return [pos,pos+12,pos+13,pos+24];
+  }
+  //L-Form
+  if(form==2){
+    //right
+    if(state==0){
+      if(x==0)return;
+      return [pos+11,pos+12,pos+13,pos+23];
+    }
+    //down
+    if(state==1)return [pos-11,pos-12,pos+1,pos+13];
+    //left
+    if(state==2){
+      if(x==11)return;
+      return [pos+11,pos+12,pos+13,pos+1];
+    }
+    //up
+    if(state==3)return [pos-11,pos+1,pos+13,pos+14];
+  }
+}
+class Color{
+  constructor(){
+    this.value = colors[Math.floor(Math.random()*colors.length)];
+  }
+};
+
+class App extends React.Component{
+  constructor(props){
+    super(props);
+    this.state = {
+       blocks: new Array(156).fill(false),
+       active: [],
+       aColor: new Color().value,
+       nColor: new Color().value,
+       aForm: Math.floor(Math.random()*3),
+       nForm: Math.floor(Math.random()*3),
+       transform: 0,
+       score: 0,
+       highScore: 0,
+       boost: false
+    };
+    this.newFormation = this.newFormation.bind(this);
+    this.tick = this.tick.bind(this);
+    this.collide = this.collide.bind(this);
+    this.input = this.input.bind(this);
+    this.gameOver = this.gameOver.bind(this);
+    this.checkRows = this.checkRows.bind(this);
+    this.clearRow = this.clearRow.bind(this);
+    this.timer = setTimeout(this.tick,500);
+  };
+  checkRows(){
+    var clear;
+    var rows = [];
+    for(let j=4;j<13;j++){
+      clear = true;
+      for(let i=0;i<12;i++)if(!this.state.blocks[i+12*j])clear = false;
+      if(clear)rows.push(j);
+    }
+    if(rows.length)this.clearRow(rows);
+  }
+  clearRow(rows){
+    let blocksUpdate = [...this.state.blocks];
+    for(let row of rows)blocksUpdate.splice(row*12,12);
+    this.setState({blocks: new Array(12*rows.length).fill(false).concat(blocksUpdate), score: Math.floor(this.state.score+power(10,rows.length))});
+  }
+  gameOver(){
+    prompt("Thanks for playing my original game! Your Scored: "+this.state.score+"Points. But I could do better in my sleep :(");
+    clearTimeout(this.timer);
+    this.setState({
+       blocks: new Array(156).fill(false),
+       active: [],
+       aColor: new Color().value,
+       nColor: new Color().value,
+       aForm: Math.floor(Math.random()*3),
+       nForm: Math.floor(Math.random()*3),
+       transform: 0,
+       score: 0,
+       highScore: this.state.score>this.state.highScore? this.state.score:this.state.highScore,
+       boost: false
+    });
+    setTimeout(this.tick,500);
+  }
+  input(e){
+    if(!this.state.active.length)return;
+    console.log("INPUTE");
+    e.preventDefault();
+    if(e.key == "ArrowLeft"){
+      for(let b of this.state.active)if(b/12==Math.floor(b/12) || this.state.blocks[b-1])return;
+      this.setState({active: this.state.active.map(b=>b-1)});
+    }
+    if(e.key == "ArrowRight"){
+      for(let b of this.state.active)if((b+1)/12==Math.floor((b+1)/12) || this.state.blocks[b+1])return;
+      this.setState({active: this.state.active.map(b=>b+1)});
+    }
+    if(e.key == " "){
+      let transformation = transform(this.state.active[0],this.state.aForm,this.state.transform);
+      if(!transformation)return;
+      for(let t of transformation)if(this.state.blocks[t] || t>=156)return;
+      let transformUpdate = this.state.transform+1;
+      if(transformUpdate==4)transformUpdate=0;
+      this.setState({active: transformation, transform: transformUpdate});
+    }
+    if(e.key == "ArrowDown")this.setState({boost: true});
+  }
+  collide(){
+    let blocks = this.state.blocks;
+    for(let b of this.state.active)blocks[b] = this.state.aColor;
+    this.setState({
+      blocks: blocks,
+      active: [],
+      aColor: this.state.nColor,
+      aForm: this.state.nForm,
+      nColor: new Color().value,
+      nForm: Math.floor(Math.random()*3),
+      transform: 0,
+      boost: false
+    });
+    setTimeout(this.checkRows,250);
+  }
+  tick(){
+    if(!this.state.active.length)this.newFormation();
+    else this.setState({active: this.state.active.map(b=>b+12)});
+    for(let b of this.state.active)if(this.state.blocks[b+12] || b>=144){
+      this.collide();
+      break;
+    }
+    if(this.state.boost)this.timer = setTimeout(this.tick,10);
+    else this.timer = setTimeout(this.tick,170+330/(1+this.state.score/500));
+  }
+  newFormation(){   
+    //StraightLine
+    if(this.state.aForm == 0)var newFormation = [5,17,29,41];
+    //T-Form
+    if(this.state.aForm == 1)var newFormation = [5,17,18,29];
+    //L-Form
+    if(this.state.aForm == 2)var newFormation = [5,17,29,30];
+    
+    for(let b of newFormation)if(this.state.blocks[b]){
+	this.gameOver();
+	return;
+	}
+    this.setState({active: newFormation});
+  }
+  render(){
+    let blocks = [];
+    for(let b of this.state.active){
+      let y = Math.floor(b/12);
+      let x = b-y*12;
+      blocks.push({x, y, color:this.state.aColor});
+    }
+    for(let i=0;i<12;i++)for(let j=0;j<13;j++)if(this.state.blocks[i+12*j])blocks.push({x: i, y: j, color: this.state.blocks[i+12*j]});
+    return (
+      <tr tabIndex="0" onKeyDown={this.input}>
+      <Game blocks={blocks}/>
+      <Hud score={this.state.score} highScore={this.state.highScore} nForm={this.state.nForm} nColor={this.state.nColor}/>
+      </tr>
+    );
+  }
+};
+
+class Game extends React.Component{
+  render(){
+    var blocks = this.props.blocks.map(({x,y,color}) => {
+      var style = {left: String(x*30+8)+"px", top: String(y*30+8)+"px", background: color};
+      return <div key={x+12*y} className="block" style={style}/>;
+    });
+    return(
+      <td id="game">
+      <Grid/>
+      {blocks}
+      </td>
+    );
+  }
+}
+        
+function Grid(props){
+  var row = [];
+  for(let i=0; i<12; i++)row.push(<td key={i} className="grid"/>);
+  var table = [];
+  for(let j=0; j<13; j++)table.push(<tr key={j}>{row}</tr>);
+  return <table>{table}</table>;
+}
+
+class Hud extends React.Component{
+	render(){
+		let nFormArray = [];
+		if(this.props.nForm==0) nFormArray = [[0,0],[0,1],[0,2],[0,3]];
+		if(this.props.nForm==1) nFormArray = [[0,0],[0,1],[1,1],[0,2]];
+		if(this.props.nForm==2) nFormArray = [[0,0],[0,1],[0,2],[1,2]];
+		let display = nFormArray.map(([x,y]) => {
+			var style = {left: String(x*30+468)+"px", top: String(y*30+233)+"px", background: this.props.nColor};
+			return <div className="block" style={style} key={x+2*y}/>;
+		});
+		return (
+			<td id="hud">
+				<h1>TETRIS ULTRA!</h1>
+				<h2>Score: {this.props.score}Points</h2>
+        <h2>HighScore: {this.props.highScore}Points</h2>
+				{display}
+			</td>				
+		);
+	}
+};
+
+const container = document.getElementById('root');
+const root = ReactDOM.createRoot(container);
+root.render(<App />);
+
+
+    </script>
+  </body>
+</html>
